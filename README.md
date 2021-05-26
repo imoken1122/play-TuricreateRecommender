@@ -1,7 +1,5 @@
-
-
 # __turicreate とは__
-
+***
 
 <br>
 
@@ -13,7 +11,8 @@ turicreate は Apple の機械学習のライブラリで, 古典的手法から
 
 <br>
 
-最初にturicreateでレコメンドを行う方法を書いておきます. 
+最初にturicreateでレコメンドを行う方法を書いておきます.   
+ちなみにこの[チュートリアル](https://apple.github.io/turicreate/docs/userguide/recommender/) がわかりやすいです
 
 __turicreateのインストール__
 
@@ -23,7 +22,7 @@ pip install turicreate
 
 <br>
 
-__レコメンドエンジンを作成__
+__レコメンダーを作成__
 
 hoge.csv には [user_id , item_id, rating] のカラムがあるとすると, 以下で学習できます.
 
@@ -52,9 +51,11 @@ sim_item = model.get_similarity_item([<任意のitem_id>]) #  (2)
 
 
 # レコメンドに用いるデータセット
+***
 
+<br>
 
-
+Kaggleに置いてある約700万件のユーザレビューのデータを用います.
 
 [https://www.kaggle.com/CooperUnion/anime-recommendations-database:embed:cite]
 
@@ -67,6 +68,7 @@ __rating..csv__
 ```
 user_id, anime_id, rating (-1 , 0 ~ 10)
 ```
+[f:id:kenzo1122:20210525215240p:plain:w200:h250]
 
 <br>
 
@@ -74,14 +76,23 @@ __anime.csv__
 ```
 anime_id, name, genre , type, episodes, rating, members 
 ```
+[f:id:kenzo1122:20210525215246p:plain]
+
 <br>
 
-今回学習に用いるデータは,  rating.csv と, anime.csv[ anime_id, name, type]  とします. 
+今回学習に用いるデータは,  rating.csv と, anime.csv[ anime_id, name]  とします. 
 
 <br>
 
 # データ前処理
+***
 
+<br>
+
+最初にこの章のコードを置いておきます
+
+
+[https://github.com/imoken1122/turicreate-AnimeRecommender/blob/main/preprocess.py]
 
 
 
@@ -100,7 +111,7 @@ anime = pd.read_csv("anime.csv")
 
 #### 評価に参加した数が少ないuser と 評価された数が少ないアニメを削除
 ```python
-
+# 各userが出現する回数, 各animeが出現する回数
 user_ids_count = Counter(rait.user_id)
 anime_ids_count = Counter(rait.anime_id)
 
@@ -118,15 +129,15 @@ rait_sm = rait[rait.user_id.isin(user_ids) & rait.anime_id.isin(anime_ids)]
 
 #### anime_id で rating.csv と anime.csv をマージして, indexふりなおし
 ```python
-merge_rait = rait.merge(anime, on_left="anime_id". on_right_"anime_id", how = "left")
 
-map_user_id = {}
-for i, u_id in enumerate(user_ids):
-    map_user_id[u_id] = i
-map_anime_id = {}
-for i, a_id in enumerate(anime_ids):
-    map_anime_id[a_id] = i
+# マージ
+merge_rait = rait_sm.merge(anime, left_on="anime_id". right_on ="anime_id", how = "left")
 
+# index ふりなおしの辞書作成
+map_user_id = {u_id:i for i, u_id in enumerate(user_ids)}
+map_anime_id = {a_id:i for i, a_id in enumerate(anime_ids)}
+
+# 各々indexふりなおし
 merge_rait.loc[:, 'user_id'] = merge_rait.progress_apply(lambda x: map_user_id[x.user_id], axis=1)
 merge_rait.loc[:, 'anime_id'] = merge_rait.progress_apply(lambda x: map_anime_id[x.anime_id], axis=1)
 
@@ -134,10 +145,10 @@ merge_rait.loc[:, 'anime_id'] = merge_rait.progress_apply(lambda x: map_anime_id
 
 <br>
 
-#### rating = -1  の評価値を matrix facraization で予測して埋める
+#### rating = -1  の評価値を matrix facrization で予測して埋める
 
-ここで, rating が -1 の行をどうするかなんですが, その行を削除する, そのuserの評価の平均値, そのアニメの評価平均値で埋めるなど対処は色々あると思います.   
-ここでは, rating が -1 以外のデータを用いて turicrete の [matrix factraization](https://apple.github.io/turicreate/docs/api/generated/turicreate.recommender.factorization_recommender.create.html#turicreate.recommender.factorization_recommender.create) で学習します.  そして, 評価値が-1である行のユーザがあるアニメにどんな点数をつけるか予測させます.   
+rating が -1 の対処法ですが,  その行を削除する, そのuserの評価の平均値, そのアニメの評価平均値で埋めるなどあると思います.   
+ここでは, rating が -1 以外のデータを用いて turicreate の [matrix factorization](https://apple.github.io/turicreate/docs/api/generated/turicreate.recommender.factorization_recommender.create.html#turicreate.recommender.factorization_recommender.create) で学習します.  そして, 評価値が-1である行のユーザがあるアニメにどんな点数をつけるか予測させます.   
  
 また評価予測値が 0~ 10 の範囲に必ずにも予測されないかつ多少評価値が高く予測されていたため, 以下の`func(x)`によって, 調整しました. 
 
@@ -149,15 +160,24 @@ import turicreate as tc
 def func(x):
     return 10/(1+ np.exp(-0.76*x + 5))
 
-merge_rait_ = merge_rait[merge_rait.rating_x != -1] # rating が -1 以外のデータ
+# rating が -1 以外のデータ
+merge_rait_ = merge_rait[merge_rait.rating_x != -1] 
 sfd = tc.SFrame(merge_rait_[["user_id","anime_id","rating_x"]])
-m = tc.factorization_recommender.create(sfd, "user_id","anime_id",target = "rating_x") # matrix factraization
 
+#学習
+m = tc.factorization_recommender.create(sfd, "user_id","anime_id",target = "rating_x") # matrix factorization
+
+# -1 のみのデータ
 lack_data = merge_rait[merge_rait.rating_x == -1][["user_id","anime_id"]]  rating が -1 のデータ
-pred= lack_data.progress_apply(lambda x :m.predict({"user_id":x.user_id,"anime_id":x.anime_id})[0],axis=1) # ratingが-1であるuser_id, anime_id の組み合わせで rating を予測
-merge_rait.loc[lack_data.index, "rating_x"] = func(pred.values).astype(int) # 埋める
 
-merge_rait.to_csv("data_comlement.csv",index = False) # 保存
+# ratingが-1であるuser_id, anime_id の組み合わせで rating を予測
+pred= lack_data.progress_apply(lambda x :m.predict({"user_id":x.user_id,"anime_id":x.anime_id})[0],axis=1) 
+
+ # 埋める
+merge_rait.loc[lack_data.index, "rating_x"] = func(pred.values).astype(int)
+
+# 保存
+merge_rait.to_csv("data_comlement.csv",index = False) 
 ```
 
 
@@ -169,12 +189,23 @@ merge_rait.to_csv("data_comlement.csv",index = False) # 保存
 <br>
 
 
-# レコメンドエンジンを作成
+# レコメンダーを作成
+***
 
 
 <br>
 
-レコメンドエンジンを作成にあたって, [ranking_factraization_recommender](https://apple.github.io/turicreate/docs/api/generated/turicreate.recommender.ranking_factorization_recommender.create.html#turicreate.recommender.ranking_factorization_recommender.create) と  [factraization_recommender](https://apple.github.io/turicreate/docs/api/generated/turicreate.recommender.factorization_recommender.create.html#turicreate.recommender.factorization_recommender.create) で学習させてみて, RMSEやレコメンドされるアニメを比較したいと思います. 
+最初にこの章のコードを置いておきます
+
+
+[https://github.com/imoken1122/turicreate-AnimeRecommender/blob/main/recommender.py]
+
+
+
+
+<br>
+
+レコメンドエンジンを作成にあたって, [ranking_factorization_recommender](https://apple.github.io/turicreate/docs/api/generated/turicreate.recommender.ranking_factorization_recommender.create.html#turicreate.recommender.ranking_factorization_recommender.create) と  [factorization_recommender](https://apple.github.io/turicreate/docs/api/generated/turicreate.recommender.factorization_recommender.create.html#turicreate.recommender.factorization_recommender.create) で学習させてみて, RMSEやレコメンドされるアニメを比較したいと思います. 
 
 #### データ読み込み
 
@@ -288,7 +319,7 @@ RMSE: 1.319034169311567
 # 類似アニメをレコメンドさせてみる
 
 
-ranking_factorization_recommender と factorization_recommender によるレコメンドされるアニメを見てみます. そのためには, [get_similar_items](https://apple.github.io/turicreate/docs/api/generated/turicreate.recommender.ranking_factorization_recommender.RankingFactorizationRecommender.get_similar_items.html#turicreate.recommender.ranking_factorization_recommender.RankingFactorizationRecommender.get_similar_items)関数を用います. (matrix factraizationされた後のアイテム潜在ベクトル間のコサイン類似度によってレコメンドされるアイテムが選ばれます. )
+ranking_factorization_recommender と factorization_recommender によるレコメンドされるアニメを見てみます. そのためには, [get_similar_items](https://apple.github.io/turicreate/docs/api/generated/turicreate.recommender.ranking_factorization_recommender.RankingFactorizationRecommender.get_similar_items.html#turicreate.recommender.ranking_factorization_recommender.RankingFactorizationRecommender.get_similar_items)関数を用います. (matrix factorizationされた後のアイテム潜在ベクトル間のコサイン類似度によってレコメンドされるアイテムが選ばれます. )
 
 <br>
 
@@ -377,11 +408,47 @@ similar_items_ = rankmf.get_similar_items(['Kono Subarashii Sekai ni Shukufuku w
 'Gate: Jieitai Kanochi nite, Kaku Tatakaeri'
 ```
 
-<br>
-
 MFによってレコメンドされたアニメは見たことがないためなんとも言えませんが, rankMFの方は ,灰と幻想のグリムガルやリゼロ, Gateといくつか異世界転生系のアニメをレコメンドしています.
   
+<br>
+
+全体のコード
+
+[https://github.com/imoken1122/turicreate-AnimeRecommender]
+
+
+
+##  デモ
+
+最後に,  React と FastAPI を用いて[デモ](https://arncmd.herokuapp.com/)を作成しましたので遊んでみてください 
+(ただ Heroku は30分間アクセスがないとスリープしてしまうため, 最初はフロントからリクエストを送信しても何も返ってこない可能性がありますので何回か送信してみてください.) 
+
+
+
+# おまけ
+***
 
 <br>
+
+ここで用いたデータセットのアニメタイトルは全て日本語のローマ字表記と英語なので, [2]を参考にスクレイピングでそれらに対応する日本語表記を取得するスクリプトを置いておきます. ( ※ 完璧ではありませんが有名タイトルは大抵日本語表記になります)
+
+
+[https://github.com/imoken1122/everyones-scraper/blob/main/anime_title_en2ja.py]
+
+
+<br>
+
+# 参考
+
+[1] [https://apple.github.io/turicreate/docs/api/turicreate.toolkits.recommender]
+
+[2] [https://apple.github.io/turicreate/docs/userguide/recommender]
+
+[3] [https://note.com/npaka/n/naf3b46f598ab?magazine_key=m4c8ee8cad783]
+
+
+
+
+
 
 
