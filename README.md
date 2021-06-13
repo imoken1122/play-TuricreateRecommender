@@ -6,7 +6,7 @@
 turicreate は Apple の機械学習のライブラリで, 古典的手法から深層学習を用いたタスクまでいくつかカバーされており, sklearnのように手軽に学習させることができます. 
 
 
-[https://apple.github.io/turicreate/docs/api/index.html:embed:cite]
+[https://apple.github.io/turicreate/docs/api/index]
 
 
 <br>
@@ -57,7 +57,7 @@ sim_item = model.get_similarity_item([<任意のitem_id>]) #  (2)
 
 Kaggleに置いてある約700万件のユーザレビューのデータを用います.
 
-[https://www.kaggle.com/CooperUnion/anime-recommendations-database:embed:cite]
+[https://www.kaggle.com/CooperUnion/anime-recommendations-database]
 
 <br>
 
@@ -68,7 +68,7 @@ __rating..csv__
 ```
 user_id, anime_id, rating (-1 , 0 ~ 10)
 ```
-[f:id:kenzo1122:20210525215240p:plain:w200:h250]
+
 
 <br>
 
@@ -76,7 +76,7 @@ __anime.csv__
 ```
 anime_id, name, genre , type, episodes, rating, members 
 ```
-[f:id:kenzo1122:20210525215246p:plain]
+
 
 <br>
 
